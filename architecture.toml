@@ -1,0 +1,45 @@
+# Architecture boundary rules for Axiom-RS.
+# scripts/check_architecture.py validates these facts; cargo-make only orchestrates.
+
+[layer.foundation]
+paths = ["src/value/**", "src/foundation/**"]
+may_depend_on = []
+
+[layer.action]
+paths = ["src/action/**"]
+may_depend_on = ["foundation"]
+
+[layer.runtime]
+paths = ["src/runtime/**"]
+may_depend_on = [
+    "foundation",
+    "action",
+]
+
+[layer.introspection]
+paths = ["src/introspection/**"]
+may_depend_on = [
+    "foundation",
+    "action",
+]
+
+[layer.root]
+paths = ["src/lib.rs", "src/main.rs"]
+may_depend_on = [
+    "foundation",
+    "action",
+    "runtime",
+    "introspection",
+]
+
+# Optional exceptions:
+# [[allow]]
+# from = "src/foundation/special.rs"
+# to = "runtime"
+#
+# [[deny]]
+# from = "introspection"
+# to = "runtime"
+#
+# Optional layer internals that other layers may not import:
+# internal_modules = ["action::internal"]

@@ -1,0 +1,285 @@
+[config]
+default_to_workspace = false
+
+[env]
+RUST_BACKTRACE = "1"
+
+# ============================================================
+# Compile
+# ============================================================
+
+[tasks.compile-check]
+description = "Compile-check all targets"
+category = "Build"
+command = "cargo"
+args = [
+    "check",
+    "--all-targets",
+    "--all-features",
+]
+
+# ============================================================
+# Format
+# ============================================================
+
+[tasks.format-check]
+description = "Verify Rust source formatting"
+category = "Quality"
+command = "cargo"
+args = [
+    "fmt",
+    "--all",
+    "--",
+    "--check",
+]
+
+# ============================================================
+# Clippy
+# ============================================================
+
+[tasks.clippy-check]
+description = "Run Clippy with warnings denied"
+category = "Quality"
+command = "cargo"
+args = [
+    "clippy",
+    "--all-targets",
+    "--all-features",
+    "--",
+    "-D",
+    "warnings",
+]
+
+# ============================================================
+# Complexity
+# ============================================================
+
+[tasks.complexity-check]
+description = "Check Rust source complexity"
+category = "Quality"
+command = "lizard"
+args = [
+    "-l",
+    "rust",
+    "-C",
+    "10",
+    "-L",
+    "80",
+    "-a",
+    "5",
+    "src",
+    "tests",
+]
+
+# ============================================================
+# Documentation
+# ============================================================
+
+[tasks.docs-check]
+description = "Validate Rust API documentation"
+category = "Quality"
+env = { RUSTDOCFLAGS = "-D warnings" }
+command = "cargo"
+args = [
+    "doc",
+    "--all-features",
+    "--no-deps",
+]
+
+# ============================================================
+# Architecture
+# ============================================================
+
+[tasks.architecture-check]
+description = "Validate architecture boundaries"
+category = "Quality"
+command = "python3"
+args = [
+    "scripts/check_architecture.py",
+    "--config",
+    "architecture.toml",
+]
+
+[tasks.architecture-check.windows]
+command = "py"
+args = [
+    "-3",
+    "scripts/check_architecture.py",
+    "--config",
+    "architecture.toml",
+]
+
+# ============================================================
+# Coverage
+# ============================================================
+
+[tasks.coverage-generate]
+description = "Generate LLVM coverage report"
+category = "Test"
+install_crate = { crate_name = "cargo-llvm-cov", binary = "cargo-llvm-cov", version = "0.9.0" }
+
+dependencies = ["compile-check"]
+
+command = "cargo"
+args = [
+    "llvm-cov",
+    "--all-features",
+    "--json",
+    "--output-path",
+    "target/coverage.json",
+]
+
+[tasks.coverage-check]
+description = "Validate coverage thresholds"
+category = "Test"
+dependencies = ["coverage-generate"]
+
+command = "python3"
+args = [
+    "scripts/check_coverage.py",
+    "target/coverage.json",
+    "--lines",
+    "90",
+    "--regions",
+    "90",
+]
+
+[tasks.coverage-check.windows]
+command = "py"
+args = [
+    "-3",
+    "scripts/check_coverage.py",
+    "target/coverage.json",
+    "--lines",
+    "90",
+    "--regions",
+    "90",
+]
+
+# ============================================================
+# Miri
+# ============================================================
+
+[tasks.miri-check]
+description = "Run tests under Miri"
+category = "Hardening"
+install_crate = false
+command = "cargo"
+args = [
+    "+nightly",
+    "miri",
+    "test",
+    "--all-features",
+]
+
+# ============================================================
+# AddressSanitizer - Windows
+# ============================================================
+
+[tasks.asan-windows]
+description = "Run tests with AddressSanitizer on Windows"
+category = "Hardening"
+install_crate = false
+condition = { platforms = ["windows"] }
+
+env = { RUSTFLAGS = "-Zsanitizer=address", RUSTDOCFLAGS = "-Zsanitizer=address" }
+
+command = "cargo"
+args = [
+    "+nightly",
+    "test",
+    "-Zbuild-std",
+    "--target",
+    "x86_64-pc-windows-msvc",
+    "--all-features",
+]
+
+# ============================================================
+# AddressSanitizer - Linux
+# ============================================================
+
+[tasks.asan-linux]
+description = "Run tests with AddressSanitizer on Linux"
+category = "Hardening"
+install_crate = false
+condition = { platforms = ["linux"] }
+
+env = { RUSTFLAGS = "-Zsanitizer=address", RUSTDOCFLAGS = "-Zsanitizer=address" }
+
+command = "cargo"
+args = [
+    "+nightly",
+    "test",
+    "-Zbuild-std",
+    "--target",
+    "x86_64-unknown-linux-gnu",
+    "--all-features",
+]
+
+# ============================================================
+# AddressSanitizer - Platform dispatcher
+# ============================================================
+
+[tasks.asan-check]
+description = "Run AddressSanitizer tests for the current platform"
+category = "Hardening"
+run_task = { name = ["asan-windows", "asan-linux"] }
+
+# ============================================================
+# Mutation Testing
+# ============================================================
+
+[tasks.mutation-check]
+description = "Run mutation testing"
+category = "Hardening"
+
+env = { RUSTFLAGS = "", RUSTDOCFLAGS = ""}
+
+install_crate = { crate_name = "cargo-mutants", binary = "cargo-mutants", version = "27.1.0" }
+
+command = "cargo"
+args = [
+    "mutants",
+    "--all-features",
+]
+
+# ============================================================
+# Fast Flow
+# ============================================================
+
+[tasks.fast]
+description = "Fast development quality gate"
+category = "Flow"
+dependencies = [
+    "architecture-check",
+    "coverage-check",
+]
+
+# ============================================================
+# Full Flow
+# ============================================================
+
+[tasks.full]
+description = "Complete Axiom-RS quality gate"
+category = "Flow"
+dependencies = [
+    "format-check",
+    "clippy-check",
+    "complexity-check",
+    "docs-check",
+    "architecture-check",
+    "coverage-check",
+]
+
+# ============================================================
+# Hardening Flow
+# ============================================================
+
+[tasks.hardening]
+description = "Deep runtime safety and test-strength validation"
+category = "Flow"
+dependencies = [
+    "miri-check",
+    "asan-check",
+    "mutation-check",
+]
