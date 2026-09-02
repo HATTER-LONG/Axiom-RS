@@ -1,5 +1,10 @@
 # Axiom-RS
 
+## Planning
+
+- [Overall development plan](docs/development-plan.md)
+- [Phase 1 foundation tasks](docs/phase-1-tasks.md)
+
 ## Setup
 
 ```bash
