@@ -1,0 +1,24 @@
+# cargo-mutants exclusions for mutants already reviewed as not worth killing.
+# Patterns match the full name from `cargo mutants --list` / missed.txt.
+# Anchor each pattern to the reviewed source file. Do not use exclude_globs:
+# that would skip every mutant in the file, including ones tests should catch.
+# Do not exclude public accessors or value equality.
+
+exclude_re = [
+    # Equivalent: Path derives Default as an empty vec, same as root().
+    'src/foundation/path\.rs:.*replace Path::root -> Self with Default::default\(\)',
+
+    # Hash/Eq contract only requires equal values to hash equal. A no-op hasher
+    # still satisfies that; different values hashing differently is not guaranteed.
+    'src/foundation/value\.rs:.*replace <impl Hash for FiniteFloat>::hash with \(\)',
+    'src/foundation/value\.rs:.*replace <impl Hash for Object>::hash with \(\)',
+    'src/foundation/value\.rs:.*replace <impl Hash for Value>::hash with \(\)',
+
+    # Convenience AsRef; CorrelationId identity is asserted via as_str / Display.
+    'src/foundation/id\.rs:.*<impl AsRef<str> for CorrelationId>',
+
+    # Human-readable text, not the machine discriminator (kind / typed error).
+    'src/foundation/id\.rs:.*<impl fmt::Display for InvalidIdentifier>',
+    'src/foundation/value\.rs:.*<impl fmt::Display for NonFiniteFloat>',
+    'src/foundation/error\.rs:.*match guard !path\.segments\(\)\.is_empty\(\) with true in <impl fmt::Display for Error>::fmt',
+]
