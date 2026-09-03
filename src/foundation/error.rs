@@ -45,20 +45,20 @@ impl fmt::Display for ErrorKind {
 /// Program-readable failure with a kind, optional path, and Axiom [`Value`] details.
 ///
 /// Display text is for humans. Callers must use [`Error::kind`] to distinguish
-/// categories. Constructors keep kind, path, and details aligned.
+/// categories. Only the module that owns a failure rule constructs its errors,
+/// which keeps kind, path, and details aligned.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Error {
     kind: ErrorKind,
     message: String,
     path: Option<Path>,
     details: Option<Value>,
-    source: Option<Box<Error>>,
 }
 
 impl Error {
     /// Identifier construction failure.
     #[must_use]
-    pub fn invalid_identifier(cause: InvalidIdentifier) -> Self {
+    pub(crate) fn invalid_identifier(cause: InvalidIdentifier) -> Self {
         let reason = match &cause {
             InvalidIdentifier::Empty => "empty",
             InvalidIdentifier::TooLong { .. } => "too_long",
@@ -69,39 +69,36 @@ impl Error {
             message: cause.to_string(),
             path: None,
             details: Some(detail_fields([("reason", Value::string(reason))])),
-            source: None,
         }
     }
 
     /// Required object field was absent. `path` locates the missing field.
     #[must_use]
-    pub fn missing_field(path: Path, field: impl Into<String>) -> Self {
+    pub(crate) fn missing_field(path: Path, field: impl Into<String>) -> Self {
         let field = field.into();
         Self {
             kind: ErrorKind::MissingField,
             message: format!("missing field {field}"),
             path: Some(path),
             details: Some(detail_fields([("field", Value::string(field))])),
-            source: None,
         }
     }
 
     /// Object contained a field not declared by the contract.
     #[must_use]
-    pub fn unknown_field(path: Path, field: impl Into<String>) -> Self {
+    pub(crate) fn unknown_field(path: Path, field: impl Into<String>) -> Self {
         let field = field.into();
         Self {
             kind: ErrorKind::UnknownField,
             message: format!("unknown field {field}"),
             path: Some(path),
             details: Some(detail_fields([("field", Value::string(field))])),
-            source: None,
         }
     }
 
     /// Value kind did not match the contract at `path`.
     #[must_use]
-    pub fn type_mismatch(path: Path, expected: ValueKind, actual: ValueKind) -> Self {
+    pub(crate) fn type_mismatch(path: Path, expected: ValueKind, actual: ValueKind) -> Self {
         Self {
             kind: ErrorKind::TypeMismatch,
             message: format!("expected {expected}, found {actual}"),
@@ -110,31 +107,7 @@ impl Error {
                 ("expected", Value::string(expected.as_str())),
                 ("actual", Value::string(actual.as_str())),
             ])),
-            source: None,
         }
-    }
-
-    /// Value was the right kind but semantically invalid.
-    #[must_use]
-    pub fn invalid_value(
-        path: Option<Path>,
-        message: impl Into<String>,
-        details: Option<Value>,
-    ) -> Self {
-        Self {
-            kind: ErrorKind::InvalidValue,
-            message: message.into(),
-            path,
-            details,
-            source: None,
-        }
-    }
-
-    /// Attach a nested Axiom error as the source. Replaces any previous source.
-    #[must_use]
-    pub fn with_source(mut self, source: Error) -> Self {
-        self.source = Some(Box::new(source));
-        self
     }
 
     /// Error category.
@@ -160,12 +133,6 @@ impl Error {
     pub fn details(&self) -> Option<&Value> {
         self.details.as_ref()
     }
-
-    /// Nested Axiom error, if any.
-    #[must_use]
-    pub fn source_error(&self) -> Option<&Error> {
-        self.source.as_deref()
-    }
 }
 
 fn detail_fields<const N: usize>(fields: [(&str, Value); N]) -> Value {
@@ -183,13 +150,7 @@ impl fmt::Display for Error {
     }
 }
 
-impl StdError for Error {
-    fn source(&self) -> Option<&(dyn StdError + 'static)> {
-        self.source
-            .as_ref()
-            .map(|error| error as &(dyn StdError + 'static))
-    }
-}
+impl StdError for Error {}
 
 impl From<InvalidIdentifier> for Error {
     fn from(value: InvalidIdentifier) -> Self {
@@ -261,21 +222,12 @@ mod tests {
     }
 
     #[test]
-    fn invalid_value_and_source() {
-        let inner = Error::invalid_value(None, "inner", None);
-        let outer = Error::invalid_value(
-            Some(Path::root().field("a")),
-            "outer",
-            Some(Value::integer(1)),
-        )
-        .with_source(inner.clone());
-        assert_eq!(outer.source_error(), Some(&inner));
+    fn root_path_is_omitted_from_display() {
+        let error = Error::type_mismatch(Path::root(), ValueKind::Integer, ValueKind::String);
         assert_eq!(
-            StdError::source(&outer).map(ToString::to_string),
-            Some(inner.to_string())
+            error.to_string(),
+            "type_mismatch: expected integer, found string"
         );
-        assert!(StdError::source(&inner).is_none());
-        assert_eq!(outer.details(), Some(&Value::integer(1)));
     }
 
     #[test]

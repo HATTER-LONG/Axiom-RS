@@ -14,11 +14,7 @@ exclude_re = [
     'src/foundation/value\.rs:.*replace <impl Hash for Object>::hash with \(\)',
     'src/foundation/value\.rs:.*replace <impl Hash for Value>::hash with \(\)',
 
-    # Convenience AsRef; CorrelationId identity is asserted via as_str / Display.
-    'src/foundation/id\.rs:.*<impl AsRef<str> for CorrelationId>',
-
     # Human-readable text, not the machine discriminator (kind / typed error).
     'src/foundation/id\.rs:.*<impl fmt::Display for InvalidIdentifier>',
     'src/foundation/value\.rs:.*<impl fmt::Display for NonFiniteFloat>',
-    'src/foundation/error\.rs:.*match guard !path\.segments\(\)\.is_empty\(\) with true in <impl fmt::Display for Error>::fmt',
 ]

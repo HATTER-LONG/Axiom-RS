@@ -113,6 +113,7 @@ mod tests {
         for input in ["a", "A0._-", "request-1.child_2"] {
             let id = CorrelationId::parse(input).unwrap();
             assert_eq!(id.as_str(), input);
+            assert_eq!(id.as_ref(), input);
             assert_eq!(id.to_string(), input);
         }
     }

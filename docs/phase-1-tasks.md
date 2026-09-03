@@ -153,8 +153,11 @@ Command 或任何协议 Adapter。这样可避免上层用例在基础语义未�
 **依赖**：P1-004、P1-005。
 
 **范围**：稳定 `ErrorKind`、消息、可选诊断路径、结构化详情和错误来源边界。
-第一版只加入本阶段能产生的类别，例如 invalid identifier、missing field、unknown
-field、type mismatch、invalid value；不提前加入 Task/Resource 类别。
+`Error` 对外只提供读取与匹配接口；具体错误仅由拥有验证规则的模块在 crate 内部
+构造。第一版只包含当前确有语义来源的 invalid identifier、missing field、unknown
+field 和 type mismatch 四类；不为尚未出现的 invalid value、Task 或 Resource 失败
+预留类别。新类别应与拥有它的实际失败行为、结构化详情和测试一起交付。`Error`
+实现标准错误边界，但第一阶段不承诺嵌套 error source 链。
 
 **验收**：
 
@@ -162,7 +165,8 @@ field、type mismatch、invalid value；不提前加入 Task/Resource 类别。
 - 嵌套错误携带准确路径；
 - 详情使用 Axiom `Value`，不泄露第三方错误类型；
 - `Display` 面向人可读，但不是机器判断的唯一依据；
-- 错误构造不会接受相互矛盾的类别和字段组合。
+- 公开调用方只能读取错误；拥有规则的内部模块构造错误，且不会接受相互矛盾的
+  类别、路径和详情组合。
 
 **测试与验证**：逐类别、带/不带路径、详情和显示测试，`cargo make fast`。
 
@@ -249,7 +253,7 @@ field、type mismatch、invalid value；不提前加入 Task/Resource 类别。
 
 - integration test 只使用公开 API；
 - 示例同时覆盖成功路径和精确嵌套错误；
-- 公共导出最小且命名一致，没有上层占位类型；
+- 公共导出最小且命名一致，没有上层占位类型或通用 `Error` 构造器；
 - `cargo make full` 通过；
 - 阶段范围和实际公开 API 在本文件中保持一致。
 
