@@ -2,13 +2,16 @@
 
 ## 1. 规划依据与边界
 
-本规划依据《Axiom 整体设计》需求和当前仓库骨架制定。当前仓库是 Rust 2024
-edition 的单 library crate，已具备格式、Clippy、文档、覆盖率、Miri、
-AddressSanitizer 和 mutation testing 等质量入口，但业务代码仍是 `add` 示例。
+本规划依据 [《Axiom 整体设计》](./Axiom-design.md) 需求和当前仓库状态制定。当前仓库是
+Rust 2024 edition 的单 library crate，已具备格式、Clippy、文档、覆盖率、Miri、
+AddressSanitizer 和 mutation testing 等质量入口。
 
-`architecture.toml` 不作为本规划的输入、模块划分依据或需求来源。后续实现若需
-调整架构检查配置，应在模块边界稳定后作为独立任务处理，不让现有配置反向决定
-领域模型。
+**当前进度**：阶段 1 语义原语与阶段 2 能力元数据注册/只读发现已在 crate 中落地。
+宿主可以构造有效类型契约、登记能力描述符并读取 owned snapshot，仍不能调用能力。
+下一阶段是 Invocation 与 Runtime 调度。
+
+`architecture.toml` 只检查已实现模块的依赖方向，不是领域模型的来源。模块划分
+以本规划和整体设计为准；检查配置随已稳定边界更新，不反向决定语义。
 
 项目首先交付一个可嵌入 Rust 应用的 Capability Runtime 核心库。Python、CLI、
 MCP、HTTP、RPC 等均是后续 Adapter，不进入核心语义。
@@ -65,19 +68,19 @@ foundation: id, value, path, error
 
 依赖箭头表示“使用”。下层不得依赖上层；核心模块不得依赖 Adapter。
 
-| 模块 | 唯一职责 | 明确不负责 |
-| --- | --- | --- |
-| `foundation` | 标识、动态值、诊断路径、结构化错误 | 注册、执行、协议编码 |
-| `contract` | 输入输出类型描述与严格验证 | 能力业务逻辑 |
-| `execution` | Invocation/Correlation 上下文及传播 | 全局依赖注入 |
-| `capability` | 能力描述、实现边界和注册快照 | Task 生命周期、Adapter |
-| `resource` | 身份、存活性、受控解析和只读发现 | 把对象序列化为 `Value` |
-| `task` | 权威状态、进度、取消、结果和错误 | 把所有调用异步化 |
-| `observation` | 日志/事件观察和故障隔离 | 决定业务成败、保存权威状态 |
-| `runtime` | 解析、捕获状态、释放内部锁、调用业务 | 重写能力或资源规则 |
-| `discovery` | 无副作用的能力/资源/Task 快照 | 控制或隐式执行 |
-| `command` | 严格请求识别、结构验证、路由、统一响应 | 业务规则和传输协议 |
-| `adapter` | Rust/Python/CLI/MCP/RPC 表示转换 | 修改核心语义 |
+| 模块          | 唯一职责                               | 明确不负责                 |
+| ------------- | -------------------------------------- | -------------------------- |
+| `foundation`  | 标识、动态值、诊断路径、结构化错误     | 注册、执行、协议编码       |
+| `contract`    | 输入输出类型描述与严格验证             | 能力业务逻辑               |
+| `execution`   | Invocation/Correlation 上下文及传播    | 全局依赖注入               |
+| `capability`  | 能力描述、权威注册和只读描述快照；实现边界随 Invocation 阶段加入 | Task 生命周期、Adapter、统一 Discovery façade |
+| `resource`    | 身份、存活性、受控解析和只读发现       | 把对象序列化为 `Value`     |
+| `task`        | 权威状态、进度、取消、结果和错误       | 把所有调用异步化           |
+| `observation` | 日志/事件观察和故障隔离                | 决定业务成败、保存权威状态 |
+| `runtime`     | 解析、捕获状态、释放内部锁、调用业务   | 重写能力或资源规则         |
+| `discovery`   | 无副作用的能力/资源/Task 快照          | 控制或隐式执行             |
+| `command`     | 严格请求识别、结构验证、路由、统一响应 | 业务规则和传输协议         |
+| `adapter`     | Rust/Python/CLI/MCP/RPC 表示转换       | 修改核心语义               |
 
 ## 5. 交付路线
 
@@ -93,12 +96,14 @@ foundation: id, value, path, error
 ### 阶段 2：能力契约与发现
 
 交付能力名称、描述、分类、输入输出契约、只读描述快照和注册冲突规则。先支持
-同步、无状态能力，不引入 Task 或 Adapter。注册与发现先由 capability 模块拥有；
-独立 Discovery 聚合层等 Resource 与 Task 的发现需求出现后再建立。详细任务见
-[第二阶段开发任务](phase-2-tasks.md)。
+同步、进程内元数据，不引入 Task、Adapter 或能力实现 trait。注册与发现先由
+capability 模块拥有；独立 Discovery 聚合层等 Resource 与 Task 的发现需求出现后再
+建立。这与整体设计 5.1 节一致：Discovery 是语义，不是必须预先存在的空模块。
+详细任务见 [第二阶段开发任务](phase-2-tasks.md)。
 
-**关键验证**：重复注册不替换原值、未知查询明确返回不存在、确定性列举、owned
-快照隔离、发现所得契约与 Phase 1 验证共享同一语义来源。
+**退出条件**：宿主可以登记并发现能力的静态描述和 I/O 契约；返回值为确定、
+隔离的 owned snapshot；仍不能调用能力。实现落在 `capability` 模块，由 crate
+根再导出，不引入独立 Discovery façade。Axiom-RS 已满足该退出条件。
 
 ### 阶段 3：Invocation 与 Runtime 调度
 
@@ -184,12 +189,12 @@ conformance tests；不把传输或 LLM 依赖带入核心。
 - 不为未来 Adapter、分布式执行、认证、持久化、工作流或 LLM orchestration
   预留抽象；真实需求出现后再扩展。
 
-| 主要风险 | 控制方式 |
-| --- | --- |
-| 动态值过早绑定 JSON | 自有 `Value` 语义；序列化留在 Adapter |
-| Runtime 变成 God Object | 按权威状态拆分 owner；Runtime 只协调 |
-| 所有调用被异步模型污染 | Invocation 与 Task 从类型和阶段上分离 |
-| 锁包围宿主代码 | resolve/capture/release/execute 契约与重入测试 |
-| Observer 改变业务结果 | 故障隔离并以业务结果测试证明 |
-| 错误退化为字符串 | 类别、路径和结构化详情进入契约测试 |
-| 多语言实现按源码复制 | 维护语言无关规范和 conformance vectors |
+| 主要风险                | 控制方式                                       |
+| ----------------------- | ---------------------------------------------- |
+| 动态值过早绑定 JSON     | 自有 `Value` 语义；序列化留在 Adapter          |
+| Runtime 变成 God Object | 按权威状态拆分 owner；Runtime 只协调           |
+| 所有调用被异步模型污染  | Invocation 与 Task 从类型和阶段上分离          |
+| 锁包围宿主代码          | resolve/capture/release/execute 契约与重入测试 |
+| Observer 改变业务结果   | 故障隔离并以业务结果测试证明                   |
+| 错误退化为字符串        | 类别、路径和结构化详情进入契约测试             |
+| 多语言实现按源码复制    | 维护语言无关规范和 conformance vectors         |

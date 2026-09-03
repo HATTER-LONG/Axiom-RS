@@ -18,8 +18,8 @@ pub enum ErrorKind {
     UnknownField,
     /// A value kind did not match the expected contract.
     TypeMismatch,
-    /// A value was the expected kind but semantically invalid.
-    InvalidValue,
+    /// A capability name was already present in the registry.
+    DuplicateCapability,
 }
 
 impl ErrorKind {
@@ -31,7 +31,7 @@ impl ErrorKind {
             Self::MissingField => "missing_field",
             Self::UnknownField => "unknown_field",
             Self::TypeMismatch => "type_mismatch",
-            Self::InvalidValue => "invalid_value",
+            Self::DuplicateCapability => "duplicate_capability",
         }
     }
 }
@@ -107,6 +107,18 @@ impl Error {
                 ("expected", Value::string(expected.as_str())),
                 ("actual", Value::string(actual.as_str())),
             ])),
+        }
+    }
+
+    /// Same capability name was registered twice. `capability` is the conflicting name.
+    #[must_use]
+    pub(crate) fn duplicate_capability(capability: impl Into<String>) -> Self {
+        let capability = capability.into();
+        Self {
+            kind: ErrorKind::DuplicateCapability,
+            message: format!("capability {capability} is already registered"),
+            path: None,
+            details: Some(detail_fields([("capability", Value::string(capability))])),
         }
     }
 
@@ -242,5 +254,41 @@ mod tests {
             unknown.details().unwrap().as_object().unwrap().get("field"),
             Some(&Value::from("extra"))
         );
+    }
+
+    #[test]
+    fn every_kind_is_produced_by_an_owning_constructor() {
+        let cases = [
+            (
+                ErrorKind::InvalidIdentifier,
+                Error::from(CorrelationId::parse("").unwrap_err()),
+            ),
+            (
+                ErrorKind::MissingField,
+                Error::missing_field(Path::root().field("a"), "a"),
+            ),
+            (
+                ErrorKind::UnknownField,
+                Error::unknown_field(Path::root().field("b"), "b"),
+            ),
+            (
+                ErrorKind::TypeMismatch,
+                Error::type_mismatch(Path::root(), ValueKind::Integer, ValueKind::String),
+            ),
+            (
+                ErrorKind::DuplicateCapability,
+                Error::duplicate_capability("echo"),
+            ),
+        ];
+        for (kind, error) in cases {
+            assert_eq!(error.kind(), kind);
+            match kind {
+                ErrorKind::InvalidIdentifier
+                | ErrorKind::MissingField
+                | ErrorKind::UnknownField
+                | ErrorKind::TypeMismatch
+                | ErrorKind::DuplicateCapability => {}
+            }
+        }
     }
 }
