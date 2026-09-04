@@ -1,9 +1,9 @@
 //! Embeddable Axiom Capability Runtime core.
 //!
-//! This crate currently publishes Phase 1 semantic primitives and the start of
-//! Phase 2 capability metadata: validated identifiers, dynamic [`Value`]s,
-//! diagnostic [`Path`]s, structured [`Error`]s, type contracts, execution
-//! correlation, and capability registration/discovery types as they land.
+//! This crate currently publishes Phase 1 semantic primitives and completed
+//! Phase 2 capability metadata registration and read-only discovery: validated
+//! identifiers, dynamic [`Value`]s, diagnostic [`Path`]s, structured [`Error`]s,
+//! type contracts, execution correlation, and capability registration/discovery.
 //! Host applications should treat these types as the protocol-independent
 //! language of later runtime layers.
 //!
