@@ -4,7 +4,7 @@ use std::fmt;
 use std::hash::Hash;
 
 /// Maximum byte length of a [`CorrelationId`].
-pub const MAX_LEN: usize = 128;
+pub const CORRELATION_ID_MAX_LEN: usize = 128;
 
 /// Stable identifier that cannot be mixed with an arbitrary string.
 ///
@@ -14,7 +14,7 @@ pub const MAX_LEN: usize = 128;
 /// # Errors
 ///
 /// [`CorrelationId::parse`] fails when the input is empty, longer than
-/// [`crate::MAX_LEN`] bytes, or contains a disallowed character.
+/// [`crate::CORRELATION_ID_MAX_LEN`] bytes, or contains a disallowed character.
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct CorrelationId(String);
 
@@ -23,7 +23,7 @@ pub struct CorrelationId(String);
 pub enum InvalidIdentifier {
     /// The input was empty.
     Empty,
-    /// The input exceeded [`crate::MAX_LEN`].
+    /// The input exceeded [`crate::CORRELATION_ID_MAX_LEN`].
     TooLong {
         /// Observed length in bytes.
         length: usize,
@@ -48,7 +48,7 @@ impl CorrelationId {
         if raw.is_empty() {
             return Err(InvalidIdentifier::Empty);
         }
-        if raw.len() > MAX_LEN {
+        if raw.len() > CORRELATION_ID_MAX_LEN {
             return Err(InvalidIdentifier::TooLong { length: raw.len() });
         }
         for (index, found) in raw.chars().enumerate() {
@@ -87,7 +87,10 @@ impl fmt::Display for InvalidIdentifier {
         match self {
             Self::Empty => f.write_str("identifier must not be empty"),
             Self::TooLong { length } => {
-                write!(f, "identifier length {length} exceeds {MAX_LEN}")
+                write!(
+                    f,
+                    "identifier length {length} exceeds {CORRELATION_ID_MAX_LEN}"
+                )
             }
             Self::InvalidCharacter { index, found } => {
                 write!(f, "invalid identifier character {found:?} at index {index}")
@@ -95,6 +98,8 @@ impl fmt::Display for InvalidIdentifier {
         }
     }
 }
+
+impl std::error::Error for InvalidIdentifier {}
 
 #[cfg(test)]
 mod tests {
@@ -120,26 +125,25 @@ mod tests {
 
     #[test]
     fn rejects_empty() {
-        assert_eq!(
-            CorrelationId::parse("").unwrap_err(),
-            InvalidIdentifier::Empty
-        );
+        let err = CorrelationId::parse("").unwrap_err();
+        assert_eq!(err, InvalidIdentifier::Empty);
+        let _: &dyn std::error::Error = &err;
     }
 
     #[test]
     fn rejects_too_long() {
-        let input = "a".repeat(MAX_LEN + 1);
+        let input = "a".repeat(CORRELATION_ID_MAX_LEN + 1);
         assert_eq!(
             CorrelationId::parse(&input).unwrap_err(),
             InvalidIdentifier::TooLong {
-                length: MAX_LEN + 1
+                length: CORRELATION_ID_MAX_LEN + 1
             }
         );
     }
 
     #[test]
     fn accepts_max_length() {
-        let input = "a".repeat(MAX_LEN);
+        let input = "a".repeat(CORRELATION_ID_MAX_LEN);
         assert_eq!(CorrelationId::parse(&input).unwrap().as_str(), input);
     }
 

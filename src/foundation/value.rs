@@ -394,11 +394,15 @@ impl fmt::Display for DuplicateField {
     }
 }
 
+impl std::error::Error for DuplicateField {}
+
 impl fmt::Display for NonFiniteFloat {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str("float must be finite")
     }
 }
+
+impl std::error::Error for NonFiniteFloat {}
 
 #[cfg(test)]
 mod tests {
@@ -462,6 +466,8 @@ mod tests {
             DuplicateField { name: "a".into() }.to_string(),
             "duplicate object field a"
         );
+        let _: &dyn std::error::Error = &DuplicateField { name: "a".into() };
+        let _: &dyn std::error::Error = &Value::try_float(f64::NAN).unwrap_err();
         if let Value::Float(finite) = Value::try_float(2.5).unwrap() {
             assert_eq!(finite.get(), 2.5);
         } else {

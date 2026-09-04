@@ -66,7 +66,8 @@ Command 或任何协议 Adapter。这样可避免上层用例在基础语义未�
 **依赖**：P1-001。
 
 **范围**：先定义阶段内实际需要的 `CorrelationId`；标识内核可复用，但不提前
-公开 Capability/Resource/Task ID。
+公开 Capability/Resource/Task ID。最大长度由 `CORRELATION_ID_MAX_LEN` 命名，
+不导出含义不清的通用 `MAX_LEN`。
 
 **验收**：
 
@@ -181,7 +182,8 @@ field 和 type mismatch 四类；不为尚未出现的 invalid value、Task 或 
 **依赖**：P1-004。
 
 **范围**：标量、列表和对象契约；对象字段包含名称、契约和 required 标记。
-第一版对象默认严格，不接受未声明字段。
+第一版对象默认严格，不接受未声明字段。对象契约只通过 `TypeContract::object`
+构造，crate 外部不能通过公开变体绕过空字段名和重复字段校验。
 
 **验收**：
 

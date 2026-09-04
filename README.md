@@ -2,9 +2,11 @@
 
 ## Planning
 
+- [Axiom overall design](docs/Axiom-design.md)
 - [Overall development plan](docs/development-plan.md)
 - [Phase 1 foundation tasks](docs/phase-1-tasks.md)
 - [Phase 2 capability and discovery tasks](docs/phase-2-tasks.md)
+- [Phase 3 invocation and runtime tasks](docs/phase-3-tasks.md)
 
 ## Setup
 

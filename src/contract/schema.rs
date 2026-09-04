@@ -23,6 +23,8 @@ impl std::fmt::Display for InvalidContract {
     }
 }
 
+impl std::error::Error for InvalidContract {}
+
 /// Named field inside an object contract.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FieldContract {
@@ -67,6 +69,17 @@ impl FieldContract {
 /// Contracts are data, not Rust `TypeId`s. Object field order is the order
 /// supplied to [`TypeContract::object`]. Objects are strict: undeclared fields
 /// are rejected during validation.
+///
+/// Composite object contracts are only constructed through
+/// [`TypeContract::object`]. Direct variant construction cannot produce an
+/// object with an empty or duplicate field name.
+///
+/// ```compile_fail
+/// use axiom_rs::{FieldContract, TypeContract};
+/// let _ = TypeContract::Object {
+///     fields: vec![FieldContract::new("", TypeContract::Null, true)],
+/// };
+/// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum TypeContract {
     /// Null scalar.
@@ -84,7 +97,8 @@ pub enum TypeContract {
         /// Contract each item must satisfy.
         item: Box<TypeContract>,
     },
-    /// Strict object.
+    /// Strict object. Created only by [`TypeContract::object`].
+    #[non_exhaustive]
     Object {
         /// Fields in declaration order.
         fields: Vec<FieldContract>,
@@ -203,6 +217,7 @@ mod tests {
             .unwrap_err();
         assert_eq!(err, InvalidContract::EmptyFieldName);
         assert!(!err.to_string().is_empty());
+        let _: &dyn std::error::Error = &err;
         assert!(
             !InvalidContract::DuplicateField { name: "a".into() }
                 .to_string()

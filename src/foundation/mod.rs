@@ -10,6 +10,6 @@ mod path;
 mod value;
 
 pub use error::{Error, ErrorKind};
-pub use id::{CorrelationId, InvalidIdentifier, MAX_LEN};
+pub use id::{CORRELATION_ID_MAX_LEN, CorrelationId, InvalidIdentifier};
 pub use path::{Path, PathSegment};
 pub use value::{DuplicateField, FiniteFloat, NonFiniteFloat, Object, Value, ValueKind};

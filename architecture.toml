@@ -1,6 +1,6 @@
 # Architecture boundary rules for Axiom-RS.
 # scripts/check_architecture.py validates these facts; cargo-make only orchestrates.
-# Layer names follow docs/development-plan.md (foundation, contract, execution).
+# Layer names follow docs/development-plan.md (foundation, contract, execution, capability).
 
 [layer.foundation]
 paths = ["src/foundation/**"]
@@ -14,10 +14,15 @@ may_depend_on = ["foundation"]
 paths = ["src/execution/**"]
 may_depend_on = ["foundation"]
 
+[layer.capability]
+paths = ["src/capability/**"]
+may_depend_on = ["foundation", "contract"]
+
 [layer.root]
 paths = ["src/lib.rs"]
 may_depend_on = [
     "foundation",
     "contract",
     "execution",
+    "capability",
 ]

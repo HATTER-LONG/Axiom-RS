@@ -254,3 +254,8 @@ registry、快照和公共示例压缩为一个大提交。
 结果都是确定、隔离、无副作用的 owned snapshot，但宿主仍不能调用能力。任何
 “注册即执行”“发现即调用”、注册表内置宿主实现或为了未来并发提前暴露锁/共享
 所有权的设计，都应视为范围越界。
+
+公开表面由 `capability` 模块拥有，并通过 crate 根再导出：`CapabilityName`、
+`CapabilityCategory`、`CapabilityDescriptor`、`CapabilityRegistry`，以及
+`ErrorKind::DuplicateCapability`（详情键 `capability`）。本阶段没有独立的
+`discovery`、`runtime` 或 adapter 模块。
