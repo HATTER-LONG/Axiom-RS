@@ -17,4 +17,11 @@ exclude_re = [
     # Human-readable text, not the machine discriminator (kind / typed error).
     'src/foundation/id\.rs:.*<impl fmt::Display for InvalidIdentifier>',
     'src/foundation/value\.rs:.*<impl fmt::Display for NonFiniteFloat>',
+
+    # Debug of the private registry entry is not a public contract.
+    'src/runtime/mod\.rs:.*<impl std::fmt::Debug for Entry>',
+
+    # Wrong-thread use is a programming defect. Runtime is !Send, so tests cannot
+    # move it onto another thread without unsafe code.
+    'src/runtime/mod\.rs:.*replace Runtime::assert_owner with \(\)',
 ]

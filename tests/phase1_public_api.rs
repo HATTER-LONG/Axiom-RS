@@ -94,7 +94,7 @@ fn object_contract_rejects_empty_and_duplicate_fields() {
 }
 
 #[test]
-fn public_operations_produce_every_error_kind() {
+fn public_operations_produce_phase1_error_kinds() {
     let invalid_identifier = axiom_rs::Error::from(CorrelationId::parse("").unwrap_err());
     assert_eq!(invalid_identifier.kind(), ErrorKind::InvalidIdentifier);
 

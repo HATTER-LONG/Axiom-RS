@@ -1,28 +1,29 @@
 //! Embeddable Axiom Capability Runtime core.
 //!
-//! This crate currently publishes Phase 1 semantic primitives and completed
-//! Phase 2 capability metadata registration and read-only discovery: validated
-//! identifiers, dynamic [`Value`]s, diagnostic [`Path`]s, structured [`Error`]s,
-//! type contracts, execution correlation, and capability registration/discovery.
-//! Host applications should treat these types as the protocol-independent
-//! language of later runtime layers.
+//! Phase 3 publishes sealed type contracts, a thread-affine [`Runtime`] for
+//! atomic descriptor-and-implementation registration, synchronous invocation,
+//! and a protocol-independent [`command`] boundary. Protocol encoding lives in
+//! the `axiom-stdio` crate. [`CapabilityRegistry`] remains a metadata-only
+//! catalog; executable discovery uses [`Runtime`].
 //!
 //! [`TypeContract::object`] is the only public way to build an object contract.
-//! [`Error`] exposes kind, path, message, and details for observation; owning
-//! modules construct failures so callers cannot assemble contradictory errors.
+//! List and object variant payloads are crate-private. [`Error`] exposes kind,
+//! path, message, and details for observation; owning modules construct
+//! failures so callers cannot assemble contradictory errors.
 //!
 //! # Non-goals
 //!
-//! Resources, tasks, observers, commands, and protocol adapters are out of
-//! scope until later phases. The core does not depend on serde, JSON, or any
-//! transport type.
+//! Resources, tasks, observers, and additional adapters are out of scope.
+//! The core does not depend on serde, JSON, or any transport type.
 //!
 //! # Module boundaries
 //!
 //! - [`foundation`]: identifiers, values, paths, and errors
-//! - [`contract`]: type shape description and strict validation
+//! - [`contract`]: type shape, field descriptions, and declared constraints
 //! - [`execution`]: immutable correlation context
-//! - [`capability`]: capability metadata registration and read-only discovery
+//! - [`capability`]: capability metadata, host trait, and metadata registry
+//! - [`runtime`]: executable registration and invocation
+//! - [`command`]: list/get/invoke envelope
 //!
 //! # Examples
 //!
@@ -64,65 +65,75 @@
 //!
 //! ```
 //! use axiom_rs::{
-//!     CapabilityCategory, CapabilityDescriptor, CapabilityName, CapabilityRegistry, ErrorKind,
-//!     TypeContract, Value,
+//!     BusinessFailure, Capability, CapabilityCategory, CapabilityDescriptor, CapabilityName,
+//!     ExecutionContext, Runtime, TypeContract, Value,
 //! };
 //!
-//! let input = TypeContract::object(vec![axiom_rs::FieldContract::new(
-//!     "text",
-//!     TypeContract::String,
-//!     true,
-//! )])
-//! .unwrap();
-//! let echo = CapabilityDescriptor::new(
-//!     CapabilityName::parse("echo").unwrap(),
-//!     "return the text",
-//!     CapabilityCategory::parse("tool").unwrap(),
-//!     input,
-//!     TypeContract::String,
-//! )
-//! .unwrap();
-//! let list = CapabilityDescriptor::new(
-//!     CapabilityName::parse("list").unwrap(),
-//!     "list items",
-//!     CapabilityCategory::parse("tool").unwrap(),
-//!     TypeContract::Null,
-//!     TypeContract::list(TypeContract::String),
-//! )
-//! .unwrap();
+//! struct Echo;
+//! impl Capability for Echo {
+//!     fn invoke(
+//!         &self,
+//!         input: Value,
+//!         _context: &ExecutionContext,
+//!     ) -> Result<Value, BusinessFailure> {
+//!         Ok(input)
+//!     }
+//! }
 //!
-//! let mut registry = CapabilityRegistry::new();
-//! registry.register(echo).unwrap();
-//! registry.register(list).unwrap();
-//! let listed = registry.list();
-//! let names: Vec<_> = listed.iter().map(|item| item.name().as_str()).collect();
-//! assert_eq!(names, ["echo", "list"]);
+//! let runtime = Runtime::new();
+//! runtime
+//!     .register(
+//!         CapabilityDescriptor::new(
+//!             CapabilityName::parse("echo").unwrap(),
+//!             "return the integer",
+//!             CapabilityCategory::parse("tool").unwrap(),
+//!             TypeContract::Integer,
+//!             TypeContract::Integer,
+//!         )
+//!         .unwrap(),
+//!         Echo,
+//!     )
+//!     .unwrap();
+//! let ctx = ExecutionContext::root(axiom_rs::CorrelationId::parse("req").unwrap());
+//! let out = runtime
+//!     .invoke(
+//!         &CapabilityName::parse("echo").unwrap(),
+//!         Value::integer(3),
+//!         &ctx,
+//!     )
+//!     .unwrap();
+//! assert_eq!(out, Value::integer(3));
+//! ```
 //!
-//! let discovered = registry.get(&CapabilityName::parse("echo").unwrap()).unwrap();
-//! let value = axiom_rs::Value::try_object([("text", Value::from("hi"))]).unwrap();
-//! assert!(discovered.input().validate(&value).is_ok());
-//!
-//! let err = registry.register(discovered).unwrap_err();
-//! assert_eq!(err.kind(), ErrorKind::DuplicateCapability);
-//! assert!(registry.get(&CapabilityName::parse("missing").unwrap()).is_none());
+//! ```compile_fail
+//! fn needs_send<T: Send>(_: T) {}
+//! needs_send(axiom_rs::Runtime::new());
 //! ```
 
 pub mod capability;
+pub mod command;
 pub mod contract;
 pub mod execution;
 pub mod foundation;
+pub mod runtime;
 
 pub use crate::capability::{
-    CAPABILITY_CATEGORY_MAX_LEN, CAPABILITY_NAME_MAX_LEN, CapabilityCategory, CapabilityDescriptor,
-    CapabilityName, CapabilityRegistry, InvalidCapabilityCategory, InvalidCapabilityDescriptor,
-    InvalidCapabilityName,
+    BusinessFailure, CAPABILITY_CATEGORY_MAX_LEN, CAPABILITY_NAME_MAX_LEN, Capability,
+    CapabilityCategory, CapabilityDescriptor, CapabilityName, CapabilityRegistry,
+    InvalidCapabilityCategory, InvalidCapabilityDescriptor, InvalidCapabilityName,
 };
-pub use crate::contract::{FieldContract, InvalidContract, TypeContract};
+pub use crate::command::{
+    COMMAND_VERSION, Command, CommandResponse, decode as decode_command, execute,
+};
+pub use crate::contract::{
+    FieldContract, FloatRange, InvalidContract, ListContract, ObjectContract, TypeContract,
+};
 pub use crate::execution::ExecutionContext;
 pub use crate::foundation::{
     CORRELATION_ID_MAX_LEN, CorrelationId, DuplicateField, Error, ErrorKind, FiniteFloat,
     InvalidIdentifier, NonFiniteFloat, Object, Path, PathSegment, Value, ValueKind,
 };
+pub use crate::runtime::{Runtime, RuntimeHandle};
 
 #[cfg(test)]
 mod tests {
@@ -134,5 +145,7 @@ mod tests {
             crate::foundation::CorrelationId::parse("root").unwrap(),
         );
         let _ = crate::capability::duplicate_capability("echo");
+        let _ = crate::Runtime::new();
+        let _ = crate::command::COMMAND_VERSION;
     }
 }

@@ -63,6 +63,16 @@ impl FiniteFloat {
     pub fn get(self) -> f64 {
         self.0
     }
+
+    pub(crate) fn try_new(value: f64) -> Result<Self, NonFiniteFloat> {
+        if value.is_finite() {
+            Ok(Self(value))
+        } else {
+            Err(NonFiniteFloat {
+                bits: value.to_bits(),
+            })
+        }
+    }
 }
 
 impl PartialEq for FiniteFloat {
@@ -155,14 +165,13 @@ impl Value {
     /// # Errors
     ///
     /// Returns [`NonFiniteFloat`] when `value` is NaN or infinite.
+    /// Finite float value.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`NonFiniteFloat`] when `value` is NaN or infinite.
     pub fn try_float(value: f64) -> Result<Self, NonFiniteFloat> {
-        if value.is_finite() {
-            Ok(Self::Float(FiniteFloat(value)))
-        } else {
-            Err(NonFiniteFloat {
-                bits: value.to_bits(),
-            })
-        }
+        Ok(Self::Float(FiniteFloat::try_new(value)?))
     }
 
     /// String value.

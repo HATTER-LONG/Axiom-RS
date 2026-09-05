@@ -67,6 +67,25 @@ impl CapabilityDescriptor {
         &self.description
     }
 
+    /// Encode this descriptor for Command discovery.
+    #[must_use]
+    pub fn to_value(&self) -> crate::foundation::Value {
+        crate::foundation::Value::try_object([
+            ("name", crate::foundation::Value::string(self.name.as_str())),
+            (
+                "description",
+                crate::foundation::Value::string(self.description.clone()),
+            ),
+            (
+                "category",
+                crate::foundation::Value::string(self.category.as_str()),
+            ),
+            ("input", self.input.to_value()),
+            ("output", self.output.to_value()),
+        ])
+        .expect("descriptor keys are unique")
+    }
+
     /// Capability category.
     #[must_use]
     pub fn category(&self) -> &CapabilityCategory {
