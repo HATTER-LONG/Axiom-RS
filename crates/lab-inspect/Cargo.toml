@@ -1,0 +1,9 @@
+[package]
+name = "lab-inspect"
+version = "0.1.0"
+edition = "2024"
+description = "Reference Axiom host for phase 3 (not a production application)"
+
+[dependencies]
+axiom-rs = { path = "../.." }
+axiom-stdio = { path = "../axiom-stdio" }

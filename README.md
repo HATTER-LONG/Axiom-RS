@@ -10,14 +10,28 @@
 
 ## Current status
 
-Phase 1 primitives and Phase 2 capability metadata registration/discovery are implemented.
-Phase 3 has not started. A confirmed object-contract mutation bypass remains to be fixed;
-passing quality gates does not establish that this invariant holds.
+Phase 1 primitives, Phase 2 metadata registry, and Phase 3 core MVP are on
+`feat/phase-3-mvp`: sealed object contracts, architecture-checker qualified-path
+coverage, thread-affine `Runtime`, Command list/get/invoke, JSON/stdio adapter,
+and a **reference** host (`lab-inspect`). A production host has not been
+selected; that remaining acceptance is recorded in
+[phase 3 tasks](docs/phase-3-tasks.md) and [host freeze](docs/phase-3-host.md).
 
-The revised [development plan](docs/development-plan.md) starts Phase 3 with that fix and
-architecture-checker regression coverage, then delivers a real host integration, synchronous
-invocation, a minimal command boundary, and one external adapter. These are planned work,
-not currently available features.
+## Reference host (stdio)
+
+```bash
+cargo run -p lab-inspect
+```
+
+Send NDJSON on stdin. Integers and floats are tagged so they are not mixed:
+
+```json
+{"v":{"$i":"1"},"cmd":"list"}
+{"v":{"$i":"1"},"cmd":"get","name":"geom.axis_aligned_box"}
+{"v":{"$i":"1"},"cmd":"invoke","name":"stats.summarize","input":{"samples":[{"$i":"2"},{"$i":"4"}]},"correlation_id":"req-1"}
+```
+
+Responses go to stdout. Adapter diagnostics go to stderr.
 
 ## Setup
 

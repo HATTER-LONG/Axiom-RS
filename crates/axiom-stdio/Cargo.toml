@@ -1,0 +1,10 @@
+[package]
+name = "axiom-stdio"
+version = "0.1.0"
+edition = "2024"
+description = "JSON/stdio adapter for axiom-rs commands"
+
+[dependencies]
+axiom-rs = { path = "../.." }
+serde = "1"
+serde_json = "1"
