@@ -3,5 +3,6 @@ channel = "stable"
 components = [
     "rustfmt",
     "clippy",
+    "rust-src",
     "llvm-tools-preview"
 ]

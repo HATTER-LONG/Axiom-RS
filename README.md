@@ -6,7 +6,18 @@
 - [Overall development plan](docs/development-plan.md)
 - [Phase 1 foundation tasks](docs/phase-1-tasks.md)
 - [Phase 2 capability and discovery tasks](docs/phase-2-tasks.md)
-- [Phase 3 invocation and runtime tasks](docs/phase-3-tasks.md)
+- [Phase 3 foundation fixes and usable MVP tasks](docs/phase-3-tasks.md)
+
+## Current status
+
+Phase 1 primitives and Phase 2 capability metadata registration/discovery are implemented.
+Phase 3 has not started. A confirmed object-contract mutation bypass remains to be fixed;
+passing quality gates does not establish that this invariant holds.
+
+The revised [development plan](docs/development-plan.md) starts Phase 3 with that fix and
+architecture-checker regression coverage, then delivers a real host integration, synchronous
+invocation, a minimal command boundary, and one external adapter. These are planned work,
+not currently available features.
 
 ## Setup
 
