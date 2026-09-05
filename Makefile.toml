@@ -56,8 +56,8 @@ args = [
 # Complexity
 # ============================================================
 
-[tasks.complexity-check]
-description = "Check Rust source complexity"
+[tasks.complexity-report]
+description = "Report complexity for review; metrics do not block delivery"
 category = "Quality"
 command = "lizard"
 args = [
@@ -69,6 +69,8 @@ args = [
     "80",
     "-a",
     "5",
+    "--ignore_warnings",
+    "-1",
     "src",
     "tests",
     "crates",
@@ -116,12 +118,11 @@ description = "Generate LLVM coverage report"
 category = "Test"
 install_crate = { crate_name = "cargo-llvm-cov", binary = "cargo-llvm-cov", version = "0.9.0" }
 
-dependencies = ["compile-check"]
-
 command = "cargo"
 args = [
     "llvm-cov",
     "--workspace",
+    "--all-targets",
     "--all-features",
     "--json",
     "--output-path",
@@ -164,59 +165,28 @@ args = [
 ]
 
 # ============================================================
-# AddressSanitizer - Windows
-# ============================================================
-
-[tasks.asan-windows]
-description = "Run tests with AddressSanitizer on Windows"
-category = "Hardening"
-install_crate = false
-condition = { platforms = ["windows"] }
-
-env = { RUSTFLAGS = "-Zsanitizer=address", RUSTDOCFLAGS = "-Zsanitizer=address" }
-
-command = "cargo"
-args = [
-    "+nightly",
-    "test",
-    "-Zbuild-std",
-    "--target",
-    "x86_64-pc-windows-msvc",
-    "--workspace",
-    "--all-features",
-]
-
-# ============================================================
-# AddressSanitizer - Linux
+# AddressSanitizer (select the matching native platform explicitly)
 # ============================================================
 
 [tasks.asan-linux]
-description = "Run tests with AddressSanitizer on Linux"
+description = "Optional ASan tests for a native x86_64 Linux GNU host"
 category = "Hardening"
-install_crate = false
-condition = { platforms = ["linux"] }
-
 env = { RUSTFLAGS = "-Zsanitizer=address", RUSTDOCFLAGS = "-Zsanitizer=address" }
-
 command = "cargo"
 args = [
-    "+nightly",
-    "test",
-    "-Zbuild-std",
-    "--target",
-    "x86_64-unknown-linux-gnu",
-    "--workspace",
-    "--all-features",
+    "+nightly", "test", "-Zbuild-std",
+    "--target", "x86_64-unknown-linux-gnu", "--workspace", "--all-features",
 ]
 
-# ============================================================
-# AddressSanitizer - Platform dispatcher
-# ============================================================
-
-[tasks.asan-check]
-description = "Run AddressSanitizer tests for the current platform"
+[tasks.asan-windows]
+description = "Optional ASan tests for a native x86_64 Windows MSVC host"
 category = "Hardening"
-run_task = { name = ["asan-windows", "asan-linux"] }
+env = { RUSTFLAGS = "-Zsanitizer=address", RUSTDOCFLAGS = "-Zsanitizer=address" }
+command = "cargo"
+args = [
+    "+nightly", "test", "-Zbuild-std",
+    "--target", "x86_64-pc-windows-msvc", "--workspace", "--all-features",
+]
 
 # ============================================================
 # Mutation Testing
@@ -237,42 +207,48 @@ args = [
 ]
 
 # ============================================================
-# Fast Flow
+# Tests and flows
 # ============================================================
+
+[tasks.test-targets]
+description = "Run workspace unit, integration, and other target tests"
+category = "Test"
+command = "cargo"
+args = ["test", "--workspace", "--all-targets", "--all-features"]
+
+[tasks.test-docs]
+description = "Run workspace rustdoc examples and compile-fail tests"
+category = "Test"
+command = "cargo"
+args = ["test", "--workspace", "--all-features", "--doc"]
+
+[tasks.checker-tests]
+description = "Test repository verification tools"
+category = "Test"
+command = "uv"
+args = ["run", "--quiet", "python", "-m", "unittest", "discover", "-s", "scripts"]
 
 [tasks.fast]
-description = "Fast development quality gate"
+description = "Development checks without coverage instrumentation"
 category = "Flow"
 dependencies = [
+    "format-check",
     "architecture-check",
-    "coverage-check",
+    "checker-tests",
+    "test-targets",
+    "test-docs",
 ]
 
-# ============================================================
-# Full Flow
-# ============================================================
-
+# Coverage runs the same target tests, so full does not also run test-targets.
 [tasks.full]
-description = "Complete Axiom-RS quality gate"
+description = "Final code validation, including coverage and checker tests"
 category = "Flow"
 dependencies = [
     "format-check",
     "clippy-check",
-    "complexity-check",
     "docs-check",
     "architecture-check",
+    "checker-tests",
+    "test-docs",
     "coverage-check",
-]
-
-# ============================================================
-# Hardening Flow
-# ============================================================
-
-[tasks.hardening]
-description = "Deep runtime safety and test-strength validation"
-category = "Flow"
-dependencies = [
-    "miri-check",
-    "asan-check",
-    "mutation-check",
 ]

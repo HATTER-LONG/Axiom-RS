@@ -71,3 +71,50 @@ fn unknown_command_does_not_touch_runtime() {
     .unwrap_err();
     assert_eq!(err.kind(), ErrorKind::UnknownCommand);
 }
+
+#[test]
+fn exported_paths_distinguish_root_and_absence() {
+    let root = TypeContract::Integer
+        .validate(&Value::string("n"))
+        .unwrap_err();
+    assert_eq!(root.path(), Some(&axiom_rs::Path::root()));
+    let encoded = axiom_rs::CommandResponse::from_error(root).to_value();
+    let path = encoded
+        .as_object()
+        .unwrap()
+        .get("error")
+        .unwrap()
+        .as_object()
+        .unwrap()
+        .get("path")
+        .unwrap()
+        .as_object()
+        .unwrap();
+    assert!(path.get("segments").unwrap().as_list().unwrap().is_empty());
+    let unknown = decode_command(
+        &Value::try_object([
+            ("v", Value::integer(1)),
+            ("cmd", Value::string("invoke")),
+            ("name", Value::string("gone")),
+            ("input", Value::null()),
+            ("correlation_id", Value::string("c")),
+        ])
+        .unwrap(),
+    )
+    .unwrap();
+    let runtime = Runtime::new();
+    let response = execute(&runtime, &unknown);
+    assert!(response.error().unwrap().path().is_none());
+    assert_eq!(
+        response
+            .to_value()
+            .as_object()
+            .unwrap()
+            .get("error")
+            .unwrap()
+            .as_object()
+            .unwrap()
+            .get("path"),
+        Some(&Value::null())
+    );
+}
