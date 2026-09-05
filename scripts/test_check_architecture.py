@@ -227,6 +227,136 @@ class CheckArchitectureTests(unittest.TestCase):
         self.assertIn("forbidden dependency:", output)
         self.assertIn("runtime -> action", output)
 
+    def test_fail_when_qualified_path_in_signature(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_tree(
+                root,
+                {
+                    "architecture.toml": LAYERS,
+                    "Cargo.toml": '[package]\nname = "axiom-rs"\nversion = "0.1.0"\n',
+                    "src/value/foo.rs": """
+                        fn leak(runtime: crate::runtime::Runtime) -> crate::runtime::Runtime {
+                            runtime
+                        }
+                    """,
+                    "src/runtime/mod.rs": """
+                        pub struct Runtime;
+                    """,
+                },
+            )
+            code, output = run_in(root)
+
+        self.assertEqual(code, 1, output)
+        self.assertIn("foundation -> runtime", output)
+        self.assertIn("src/value/foo.rs", output.replace("\\", "/"))
+
+    def test_fail_when_qualified_path_in_expression(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_tree(
+                root,
+                {
+                    "architecture.toml": LAYERS,
+                    "Cargo.toml": '[package]\nname = "axiom-rs"\nversion = "0.1.0"\n',
+                    "src/foundation/mod.rs": """
+                        pub fn leak() {
+                            let _ = axiom_rs::runtime::Runtime;
+                        }
+                    """,
+                    "src/runtime/mod.rs": """
+                        pub struct Runtime;
+                    """,
+                },
+            )
+            code, output = run_in(root)
+
+        self.assertEqual(code, 1, output)
+        self.assertIn("foundation -> runtime", output)
+
+    def test_qualified_same_or_lower_layer_is_allowed(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_tree(
+                root,
+                {
+                    "architecture.toml": LAYERS,
+                    "Cargo.toml": '[package]\nname = "axiom-rs"\nversion = "0.1.0"\n',
+                    "src/runtime/mod.rs": """
+                        pub fn wrap(value: crate::foundation::Parent) -> crate::foundation::Parent {
+                            value
+                        }
+                    """,
+                    "src/foundation/mod.rs": "pub struct Parent;\n",
+                },
+            )
+            code, output = run_in(root)
+
+        self.assertEqual(code, 0, output)
+
+    def test_qualified_path_in_string_or_comment_is_ignored(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_tree(
+                root,
+                {
+                    "architecture.toml": LAYERS,
+                    "Cargo.toml": '[package]\nname = "axiom-rs"\nversion = "0.1.0"\n',
+                    "src/foundation/mod.rs": """
+                        // crate::runtime::Runtime
+                        pub const DOC: &str = "crate::runtime::Runtime";
+                    """,
+                    "src/runtime/mod.rs": "pub struct Runtime;\n",
+                },
+            )
+            code, output = run_in(root)
+
+        self.assertEqual(code, 0, output)
+
+    def test_qualified_path_in_cfg_test_is_ignored(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_tree(
+                root,
+                {
+                    "architecture.toml": LAYERS,
+                    "Cargo.toml": '[package]\nname = "axiom-rs"\nversion = "0.1.0"\n',
+                    "src/foundation/mod.rs": """
+                        pub struct Value;
+
+                        #[cfg(test)]
+                        fn leak() {
+                            let _ = crate::runtime::Runtime;
+                        }
+                    """,
+                    "src/runtime/mod.rs": "pub struct Runtime;\n",
+                },
+            )
+            code, output = run_in(root)
+
+        self.assertEqual(code, 0, output)
+
+    def test_use_and_qualified_path_are_not_double_reported(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_tree(
+                root,
+                {
+                    "architecture.toml": LAYERS,
+                    "Cargo.toml": '[package]\nname = "axiom-rs"\nversion = "0.1.0"\n',
+                    "src/action/mod.rs": """
+                        use crate::foundation::Value;
+                        pub fn wrap(value: crate::foundation::Value) -> crate::foundation::Value {
+                            value
+                        }
+                    """,
+                    "src/foundation/mod.rs": "pub struct Value;\n",
+                },
+            )
+            code, output = run_in(root)
+
+        self.assertEqual(code, 0, output)
+
     def test_comments_are_not_treated_as_imports(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

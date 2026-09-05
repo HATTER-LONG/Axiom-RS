@@ -20,6 +20,18 @@ pub enum ErrorKind {
     TypeMismatch,
     /// A capability name was already present in the registry.
     DuplicateCapability,
+    /// A declared constraint was not satisfied.
+    ConstraintViolation,
+    /// Invoke named a capability that is not registered.
+    UnknownCapability,
+    /// Host business logic rejected the request.
+    BusinessFailure,
+    /// Host output did not match the declared output contract.
+    OutputContractViolation,
+    /// Command envelope was missing, extra, or mistyped.
+    InvalidRequest,
+    /// Command name was not list, get, or invoke.
+    UnknownCommand,
 }
 
 impl ErrorKind {
@@ -32,6 +44,12 @@ impl ErrorKind {
             Self::UnknownField => "unknown_field",
             Self::TypeMismatch => "type_mismatch",
             Self::DuplicateCapability => "duplicate_capability",
+            Self::ConstraintViolation => "constraint_violation",
+            Self::UnknownCapability => "unknown_capability",
+            Self::BusinessFailure => "business_failure",
+            Self::OutputContractViolation => "output_contract_violation",
+            Self::InvalidRequest => "invalid_request",
+            Self::UnknownCommand => "unknown_command",
         }
     }
 }
@@ -119,6 +137,79 @@ impl Error {
             message: format!("capability {capability} is already registered"),
             path: None,
             details: Some(detail_fields([("capability", Value::string(capability))])),
+        }
+    }
+
+    pub(crate) fn constraint_violation(
+        path: Path,
+        constraint: impl Into<String>,
+        expected: Value,
+        actual: Value,
+    ) -> Self {
+        let constraint = constraint.into();
+        Self {
+            kind: ErrorKind::ConstraintViolation,
+            message: format!("constraint {constraint} was not satisfied"),
+            path: Some(path),
+            details: Some(detail_fields([
+                ("constraint", Value::string(constraint)),
+                ("expected", expected),
+                ("actual", actual),
+            ])),
+        }
+    }
+
+    pub(crate) fn unknown_capability(capability: impl Into<String>) -> Self {
+        let capability = capability.into();
+        Self {
+            kind: ErrorKind::UnknownCapability,
+            message: format!("capability {capability} is not registered"),
+            path: None,
+            details: Some(detail_fields([("capability", Value::string(capability))])),
+        }
+    }
+
+    pub(crate) fn business_failure(message: impl Into<String>, details: Option<Value>) -> Self {
+        Self {
+            kind: ErrorKind::BusinessFailure,
+            message: message.into(),
+            path: None,
+            details,
+        }
+    }
+
+    pub(crate) fn output_contract_violation(cause: Error) -> Self {
+        let mut fields = vec![
+            ("cause_kind", Value::string(cause.kind().as_str())),
+            ("cause_message", Value::string(cause.message())),
+        ];
+        if let Some(nested) = cause.details().cloned() {
+            fields.push(("cause_details", nested));
+        }
+        Self {
+            kind: ErrorKind::OutputContractViolation,
+            message: format!("capability output failed its contract: {}", cause.message()),
+            path: cause.path().cloned(),
+            details: Some(Value::try_object(fields).expect("output violation keys are unique")),
+        }
+    }
+
+    pub(crate) fn invalid_request(path: Path, message: impl Into<String>, details: Value) -> Self {
+        Self {
+            kind: ErrorKind::InvalidRequest,
+            message: message.into(),
+            path: Some(path),
+            details: Some(details),
+        }
+    }
+
+    pub(crate) fn unknown_command(name: impl Into<String>) -> Self {
+        let name = name.into();
+        Self {
+            kind: ErrorKind::UnknownCommand,
+            message: format!("unknown command {name}"),
+            path: Some(Path::root().field("cmd")),
+            details: Some(detail_fields([("cmd", Value::string(name))])),
         }
     }
 
@@ -279,16 +370,39 @@ mod tests {
                 ErrorKind::DuplicateCapability,
                 Error::duplicate_capability("echo"),
             ),
+            (
+                ErrorKind::ConstraintViolation,
+                Error::constraint_violation(
+                    Path::root().field("n"),
+                    "enum",
+                    Value::string("a"),
+                    Value::string("b"),
+                ),
+            ),
+            (
+                ErrorKind::UnknownCapability,
+                Error::unknown_capability("missing"),
+            ),
+            (
+                ErrorKind::BusinessFailure,
+                Error::business_failure("no", None),
+            ),
+            (
+                ErrorKind::OutputContractViolation,
+                Error::output_contract_violation(Error::type_mismatch(
+                    Path::root(),
+                    ValueKind::Integer,
+                    ValueKind::String,
+                )),
+            ),
+            (
+                ErrorKind::InvalidRequest,
+                Error::invalid_request(Path::root().field("v"), "bad version", Value::integer(2)),
+            ),
+            (ErrorKind::UnknownCommand, Error::unknown_command("drop")),
         ];
         for (kind, error) in cases {
             assert_eq!(error.kind(), kind);
-            match kind {
-                ErrorKind::InvalidIdentifier
-                | ErrorKind::MissingField
-                | ErrorKind::UnknownField
-                | ErrorKind::TypeMismatch
-                | ErrorKind::DuplicateCapability => {}
-            }
         }
     }
 }

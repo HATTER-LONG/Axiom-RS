@@ -3,6 +3,20 @@
 
 This script only checks static dependency facts. It does not format code,
 install tools, or modify the tree. cargo-make remains the orchestrator.
+
+Supported crate-local references:
+
+- `use crate::...` / `use <package>::...` trees, including groups and `as`
+- `mod` declarations
+- fully qualified `crate::...` and package-name paths in types, signatures,
+  and expressions
+
+Not a compiler. The following are out of scope and may be missed:
+
+- macro-generated paths
+- type aliases and re-exports that hide the original module
+- `use` aliases referenced by the short name
+- `include!` and generated files outside scanned paths
 """
 
 from __future__ import annotations
@@ -90,7 +104,7 @@ def run(argv: Sequence[str] | None = None) -> tuple[int, str]:
         config = load_config(config_path)
         crate_name = load_crate_name(root)
         crate_layers = crate_layer_map(config)
-        files = collect_files(root, include_tests=config.include_tests)
+        files = collect_files(root, include_tests=config.include_tests, config=config)
         file_layers = assign_layers(files, root, config)
         edges: list[Edge] = []
         for path in files:
@@ -264,16 +278,34 @@ def crate_layer_map(config: Config) -> dict[str, str]:
     return mapping
 
 
-def collect_files(root: Path, *, include_tests: bool) -> list[Path]:
-    files: list[Path] = []
+def collect_files(root: Path, *, include_tests: bool, config: Config | None = None) -> list[Path]:
+    files: set[Path] = set()
     src = root / "src"
     if src.is_dir():
-        files.extend(sorted(path for path in src.rglob("*.rs") if path.is_file()))
+        files.update(path for path in src.rglob("*.rs") if path.is_file())
+    if config is not None:
+        for layer in config.layers.values():
+            for pattern in layer.paths:
+                files.update(_files_for_layer_pattern(root, pattern))
     if include_tests:
         tests = root / "tests"
         if tests.is_dir():
-            files.extend(sorted(path for path in tests.rglob("*.rs") if path.is_file()))
-    return files
+            files.update(path for path in tests.rglob("*.rs") if path.is_file())
+    return sorted(files)
+
+
+def _files_for_layer_pattern(root: Path, pattern: str) -> list[Path]:
+    posix = pattern.replace("\\", "/")
+    if posix.endswith("/**"):
+        directory = root / posix[:-3]
+        if directory.is_dir():
+            return [path for path in directory.rglob("*.rs") if path.is_file()]
+        sibling = Path(str(directory) + ".rs")
+        return [sibling] if sibling.is_file() else []
+    candidate = root / posix
+    if candidate.is_file():
+        return [candidate]
+    return []
 
 
 def assign_layers(files: list[Path], root: Path, config: Config) -> dict[str, str]:
@@ -314,6 +346,7 @@ def parse_file_edges(
     masked = blank_cfg_test_items(masked)
     file_module = file_module_path(relative)
     edges: list[Edge] = []
+    seen_refs: set[tuple[int, str]] = set()
 
     for match in USE_HEAD.finditer(masked):
         start = match.end()
@@ -361,7 +394,53 @@ def parse_file_edges(
                 for_cycles=False,
             )
         )
+
+    use_blanked = blank_use_statements(masked)
+    crate_alt = "crate|{name}".format(name=re.escape(crate_name)) if crate_name else "crate"
+    crate_pattern = re.compile(
+        r"\b((?:" + crate_alt + r")(?:::" + IDENT + r")+)"
+    )
+    for match in crate_pattern.finditer(use_blanked):
+        raw = match.group(1)
+        line_no = use_blanked[: match.start()].count("\n") + 1
+        module_at = module_at_offset(masked, match.start(), file_module)
+        try:
+            resolved, hint = resolve_use_path(raw, module_at, crate_name, crate_layers)
+        except ValueError:
+            continue
+        if resolved is None:
+            continue
+        key = (line_no, resolved)
+        if key in seen_refs:
+            continue
+        seen_refs.add(key)
+        snippet = _snippet(original, line_no, raw)
+        to_layer = hint or layer_for_module(resolved, file_layers, config)
+        edges.append(
+            Edge(
+                source_file=relative,
+                source_line=line_no,
+                snippet=snippet,
+                from_module=module_at,
+                from_layer=layer,
+                to_module=resolved,
+                to_layer=to_layer,
+                for_cycles=True,
+            )
+        )
     return edges
+
+
+def blank_use_statements(text: str) -> str:
+    chars = list(text)
+    for match in USE_HEAD.finditer(text):
+        end = _find_semicolon(text, match.end())
+        if end is None:
+            continue
+        for index in range(match.start(), end + 1):
+            if chars[index] != "\n":
+                chars[index] = " "
+    return "".join(chars)
 
 
 def collect_violations(

@@ -1,11 +1,11 @@
-//! Capability metadata, authoritative registration, and read-only discovery.
+//! Capability metadata, implementation boundary, and metadata-only registry.
 //!
-//! This module depends only on [`crate::foundation`] and [`crate::contract`].
-//! It does not invoke host code and does not define an implementation trait.
-//! Duplicate registration errors are constructed here according to the
-//! registry's uniqueness rule.
+//! Executable registration lives on [`crate::Runtime`]. [`CapabilityRegistry`]
+//! remains a metadata catalog; it does not store implementations and is not
+//! the authority for invoke/discover of executable capabilities.
 
 mod descriptor;
+mod invoke;
 mod label;
 mod name;
 mod registry;
@@ -13,6 +13,7 @@ mod registry;
 use crate::foundation::Error;
 
 pub use descriptor::{CapabilityDescriptor, InvalidCapabilityDescriptor};
+pub use invoke::{BusinessFailure, Capability};
 pub use name::{
     CAPABILITY_CATEGORY_MAX_LEN, CAPABILITY_NAME_MAX_LEN, CapabilityCategory, CapabilityName,
     InvalidCapabilityCategory, InvalidCapabilityName,

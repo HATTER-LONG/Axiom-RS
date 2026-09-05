@@ -1,5 +1,13 @@
 # 第二阶段开发任务：能力契约与发现
 
+## 历史任务背景（2026-09-05）
+
+本文件保留阶段 2 的历史范围和任务编号。规划审查曾发现 P2-000 的封装测试没有
+覆盖对象契约的外部可变匹配路径；后续修复记录见 [阶段 3 的 P3-001](phase-3-tasks.md)。
+历史验收要求不等同于当前验证结果。当前状态与后续交付见 [整体规划](development-plan.md)；
+验证流程统一见 [README](../README.md#development-and-verification)，下列任务只定义
+相关行为测试。
+
 ## 1. 阶段目标
 
 第二阶段只交付同步、进程内的能力元数据、权威注册和只读发现：
@@ -40,7 +48,7 @@ Command 或 Adapter。注册表保存描述符的权威副本，而不是将来�
 - 在加入 `CapabilityName` 前，将过于宽泛的根级 `MAX_LEN` 收口为领域明确的名称，
   避免两个标识类型共享含义不清的公共常量；
 - 所有公开构造错误类型实现 `Display` 和 `std::error::Error`；
-- 保留并验证当前未提交修订中 `CorrelationId::as_ref()` 与 root-path `Error::Display`
+- 保留并验证该阶段基线修订中 `CorrelationId::as_ref()` 与 root-path `Error::Display`
   的回归测试，同时移除对应 mutation exclusion。
 
 **验收**：
@@ -50,8 +58,7 @@ Command 或 Adapter。注册表保存描述符的权威副本，而不是将来�
 - `ErrorKind` 中每个类别都能由当前公开操作实际产生并有行为测试；
 - 第一阶段文档、rustdoc、根导出和实现一致。
 
-**测试与验证**：增加黑盒测试或 compile-fail doctest 保护构造边界；运行聚焦测试、
-`cargo make fast` 和 `cargo make full`。
+**测试与验证**：黑盒测试或 compile-fail doctest 保护构造边界。
 
 **非目标**：借此引入 Phase 2 类型、通用错误 builder 或未来错误码。
 
@@ -99,8 +106,7 @@ P2-000 未完成时，不开始 capability 模块实现。
 - duplicate capability 无需解析消息即可识别，详情携带冲突名称；
 - 未创建空的 `discovery`、`runtime` 或 adapter 模块。
 
-**测试与验证**：错误类别/详情单元测试，`cargo make architecture-check`、
-`cargo make fast`。
+**测试与验证**：错误类别/详情单元测试和相关架构检查。
 
 **非目标**：未知能力错误、调用入口、实现 trait、同步原语。
 
@@ -120,7 +126,7 @@ P2-000 未完成时，不开始 capability 模块实现。
 - 相等、排序、哈希、`AsRef<str>` 和 `Display` 与保存文本一致；
 - 类型不暴露可变内部字符串或 unchecked 公共构造路径。
 
-**测试与验证**：表驱动单元测试和 crate 外黑盒测试，`cargo make fast`。
+**测试与验证**：表驱动单元测试和 crate 外黑盒测试。
 
 **非目标**：命名空间语义、别名、版本号、自动生成或 Unicode 规范化。
 
@@ -141,8 +147,7 @@ P2-000 未完成时，不开始 capability 模块实现。
 - input/output contract 保留原有字段声明顺序和严格验证语义；
 - 不复制 `TypeContract::validate`，不暴露内部容器或未来实现对象。
 
-**测试与验证**：合法/非法构造、字段读取、clone 隔离和契约复用测试，
-`cargo make fast`。
+**测试与验证**：合法/非法构造、字段读取、clone 隔离和契约复用测试。
 
 **非目标**：默认参数、权限、标签集合、搜索、i18n、版本协商。
 
@@ -162,7 +167,7 @@ P2-000 未完成时，不开始 capability 模块实现。
 - 大小写不同的名称按既定名称语义分别注册；
 - 无 partial write、silent replacement 或“最后写入获胜”。
 
-**测试与验证**：成功、冲突、冲突原子性和大小写测试，`cargo make fast`。
+**测试与验证**：成功、冲突、冲突原子性和大小写测试。
 
 **非目标**：移除、替换、批量事务、持久化、跨进程注册、锁或权限决策。
 
@@ -182,7 +187,7 @@ P2-000 未完成时，不开始 capability 模块实现。
 - 调用方修改或丢弃自己的集合不影响 registry；
 - 发现路径不触发宿主代码、日志回调或其他副作用。
 
-**测试与验证**：单元测试与 crate 外 integration test，`cargo make fast`。
+**测试与验证**：单元测试与 crate 外 integration test。
 
 **非目标**：筛选、分页、订阅、事件、借用视图或 Command 形式的 discover 请求。
 
@@ -203,7 +208,7 @@ P2-000 未完成时，不开始 capability 模块实现。
 - 发现所得 input/output contract 与注册时语义一致；
 - 不出现第二套 Value 或 contract 验证规则。
 
-**测试与验证**：`cargo test --doc`、对应 integration test、`cargo make fast`。
+**测试与验证**：`cargo test --doc`、对应 integration test。
 
 **非目标**：实际调用能力、mock 宿主实现或断言内部调用次数。
 
@@ -223,8 +228,8 @@ P2-000 未完成时，不开始 capability 模块实现。
 - 没有能力实现 trait、宿主回调、锁、Task、Resource 或 Adapter 泄漏进本阶段；
 - mutation exclusion 只保留有书面等价性理由的项目。
 
-**测试与验证**：运行 `cargo make full`。本阶段按设计不需要 `hardening`；若实现偏离
-计划而引入 unsafe 或同步，则必须先说明必要性，再增加 `cargo make hardening`。
+**测试与验证**：按 README 验证阶段候选。若实现引入额外内存安全风险，说明必要性并
+选择适用的专项检查；不自动运行全部 hardening 工具。
 
 ## 5. 依赖与建议交付批次
 
@@ -234,8 +239,8 @@ P2-000
 P2-001 → P2-002 → P2-003 → P2-004 → P2-005 → P2-006 → P2-007
 ```
 
-建议每项独立形成一个可评审增量；P2-001 与 P2-002 可在同一短分支交付，但不要把
-registry、快照和公共示例压缩为一个大提交。
+按可独立验收的结果形成可评审增量。任务编号不规定提交数量；相关实现、测试和
+文档保持在一起，具体提交方式见 README。
 
 ## 6. 推迟到后续阶段的决策
 

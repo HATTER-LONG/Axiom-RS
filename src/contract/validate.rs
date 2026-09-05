@@ -22,8 +22,8 @@ impl TypeContract {
 
 fn validate_at(contract: &TypeContract, value: &Value, path: &Path) -> Result<(), Error> {
     match contract {
-        TypeContract::List { item } => validate_list(item, value, path),
-        TypeContract::Object { fields } => validate_object(fields, value, path),
+        TypeContract::List(list) => validate_list(&list.item, value, path),
+        TypeContract::Object(object) => validate_object(&object.fields, value, path),
         _ => expect_kind(contract, value, path),
     }
 }
@@ -94,10 +94,99 @@ fn check_unknown(fields: &[FieldContract], object: &Object, path: &Path) -> Resu
 fn check_present(fields: &[FieldContract], object: &Object, path: &Path) -> Result<(), Error> {
     for field in fields {
         if let Some(nested) = object.get(field.name()) {
-            validate_at(field.contract(), nested, &path.field(field.name()))?;
+            let nested_path = path.field(field.name());
+            validate_at(field.contract(), nested, &nested_path)?;
+            validate_constraints(field, nested, &nested_path)?;
         }
     }
     Ok(())
+}
+
+fn validate_constraints(field: &FieldContract, value: &Value, path: &Path) -> Result<(), Error> {
+    check_enum(field, value, path)?;
+    check_integer_range(field, value, path)?;
+    check_float_range(field, value, path)
+}
+
+fn check_enum(field: &FieldContract, value: &Value, path: &Path) -> Result<(), Error> {
+    let Some(allowed) = field.enum_values() else {
+        return Ok(());
+    };
+    let Some(actual) = value.as_str() else {
+        return Ok(());
+    };
+    if allowed.iter().any(|item| item == actual) {
+        Ok(())
+    } else {
+        Err(Error::constraint_violation(
+            path.clone(),
+            "enum",
+            Value::list(allowed.iter().cloned().map(Value::string)),
+            Value::string(actual),
+        ))
+    }
+}
+
+fn check_integer_range(field: &FieldContract, value: &Value, path: &Path) -> Result<(), Error> {
+    let Some(actual) = value.as_integer() else {
+        return Ok(());
+    };
+    if let Some(min) = field.integer_min()
+        && actual < min
+    {
+        return Err(range_error(path, "integer_range", actual));
+    }
+    if let Some(max) = field.integer_max()
+        && actual > max
+    {
+        return Err(range_error(path, "integer_range", actual));
+    }
+    Ok(())
+}
+
+fn check_float_range(field: &FieldContract, value: &Value, path: &Path) -> Result<(), Error> {
+    let Some(actual) = value.as_float() else {
+        return Ok(());
+    };
+    if let Some(min) = field.float_min() {
+        let violated = if field.float_min_exclusive() {
+            actual <= min
+        } else {
+            actual < min
+        };
+        if violated {
+            return Err(float_range_error(path, actual));
+        }
+    }
+    if let Some(max) = field.float_max() {
+        let violated = if field.float_max_exclusive() {
+            actual >= max
+        } else {
+            actual > max
+        };
+        if violated {
+            return Err(float_range_error(path, actual));
+        }
+    }
+    Ok(())
+}
+
+fn range_error(path: &Path, constraint: &str, actual: i64) -> Error {
+    Error::constraint_violation(
+        path.clone(),
+        constraint,
+        Value::string(constraint),
+        Value::integer(actual),
+    )
+}
+
+fn float_range_error(path: &Path, actual: f64) -> Error {
+    Error::constraint_violation(
+        path.clone(),
+        "float_range",
+        Value::string("float_range"),
+        Value::try_float(actual).expect("validated floats are finite"),
+    )
 }
 
 #[cfg(test)]
@@ -235,5 +324,133 @@ mod tests {
         .unwrap();
         let value = Value::try_object::<&str, _>([]).unwrap();
         assert!(contract.validate(&value).is_ok());
+    }
+
+    #[test]
+    fn enum_and_range_constraints() {
+        use crate::contract::FloatRange;
+        let contract = TypeContract::object(vec![
+            FieldContract::new("unit", TypeContract::String, true)
+                .with_enum_values(vec!["mm".into(), "m".into()])
+                .unwrap(),
+            FieldContract::new("n", TypeContract::Integer, true)
+                .with_integer_range(Some(0), Some(10))
+                .unwrap(),
+            FieldContract::new("x", TypeContract::Float, true)
+                .with_float_range(FloatRange {
+                    min: Some(0.0),
+                    max: Some(1.0),
+                    min_exclusive: true,
+                    max_exclusive: false,
+                })
+                .unwrap(),
+        ])
+        .unwrap();
+        let ok = Value::try_object([
+            ("unit", Value::from("mm")),
+            ("n", Value::integer(0)),
+            ("x", Value::try_float(1.0).unwrap()),
+        ])
+        .unwrap();
+        assert!(contract.validate(&ok).is_ok());
+        let bad_enum = Value::try_object([
+            ("unit", Value::from("cm")),
+            ("n", Value::integer(0)),
+            ("x", Value::try_float(0.5).unwrap()),
+        ])
+        .unwrap();
+        assert_eq!(
+            contract.validate(&bad_enum).unwrap_err().kind(),
+            ErrorKind::ConstraintViolation
+        );
+        let bad_int = Value::try_object([
+            ("unit", Value::from("mm")),
+            ("n", Value::integer(11)),
+            ("x", Value::try_float(0.5).unwrap()),
+        ])
+        .unwrap();
+        assert_eq!(
+            contract.validate(&bad_int).unwrap_err().kind(),
+            ErrorKind::ConstraintViolation
+        );
+        let bad_float = Value::try_object([
+            ("unit", Value::from("mm")),
+            ("n", Value::integer(1)),
+            ("x", Value::try_float(0.0).unwrap()),
+        ])
+        .unwrap();
+        assert_eq!(
+            contract.validate(&bad_float).unwrap_err().kind(),
+            ErrorKind::ConstraintViolation
+        );
+    }
+
+    #[test]
+    fn inclusive_and_exclusive_numeric_bounds() {
+        use crate::contract::FloatRange;
+        let integers = TypeContract::object(vec![
+            FieldContract::new("n", TypeContract::Integer, true)
+                .with_integer_range(Some(0), Some(10))
+                .unwrap(),
+        ])
+        .unwrap();
+        let int_ok = Value::try_object([("n", Value::integer(10))]).unwrap();
+        assert!(integers.validate(&int_ok).is_ok());
+        assert!(
+            integers
+                .validate(&Value::try_object([("n", Value::integer(5))]).unwrap())
+                .is_ok()
+        );
+
+        let inclusive = TypeContract::object(vec![
+            FieldContract::new("x", TypeContract::Float, true)
+                .with_float_range(FloatRange {
+                    min: Some(0.0),
+                    max: Some(1.0),
+                    min_exclusive: false,
+                    max_exclusive: false,
+                })
+                .unwrap(),
+        ])
+        .unwrap();
+        assert!(
+            inclusive
+                .validate(&Value::try_object([("x", Value::try_float(0.0).unwrap())]).unwrap())
+                .is_ok()
+        );
+        assert!(
+            inclusive
+                .validate(&Value::try_object([("x", Value::try_float(1.0).unwrap())]).unwrap())
+                .is_ok()
+        );
+        assert!(
+            inclusive
+                .validate(&Value::try_object([("x", Value::try_float(0.5).unwrap())]).unwrap())
+                .is_ok()
+        );
+
+        let exclusive_max = TypeContract::object(vec![
+            FieldContract::new("x", TypeContract::Float, true)
+                .with_float_range(FloatRange {
+                    min: None,
+                    max: Some(1.0),
+                    min_exclusive: false,
+                    max_exclusive: true,
+                })
+                .unwrap(),
+        ])
+        .unwrap();
+        assert!(
+            exclusive_max
+                .validate(&Value::try_object([("x", Value::try_float(0.9).unwrap())]).unwrap())
+                .is_ok()
+        );
+        assert_eq!(
+            exclusive_max
+                .validate(&Value::try_object([("x", Value::try_float(1.0).unwrap())]).unwrap())
+                .unwrap_err()
+                .kind(),
+            ErrorKind::ConstraintViolation
+        );
     }
 }
