@@ -6,16 +6,24 @@
 - [Overall development plan](docs/development-plan.md)
 - [Phase 1 foundation tasks](docs/phase-1-tasks.md)
 - [Phase 2 capability and discovery tasks](docs/phase-2-tasks.md)
-- [Phase 3 foundation fixes and usable MVP tasks](docs/phase-3-tasks.md)
+- [Phase 3 foundation fixes and remaining production acceptance](docs/phase-3-tasks.md)
+- [Phase 4 resource lifecycle tasks](docs/phase-4-tasks.md)
+- [Phase 5 tracked task tasks](docs/phase-5-tasks.md)
+- [Phase 6 observation and state discovery tasks](docs/phase-6-tasks.md)
+- [Phase 7 Agent adapter tasks](docs/phase-7-tasks.md)
+- [Phase 8 integration and Rust release candidate tasks](docs/phase-8-tasks.md)
+- [Phase 9 specification and cross-implementation tasks](docs/phase-9-tasks.md)
 
 ## Current status
 
-Phase 1 primitives, Phase 2 metadata registry, and Phase 3 core MVP are on
-`feat/phase-3-mvp`: sealed object contracts, architecture-checker qualified-path
-coverage, thread-affine `Runtime`, Command list/get/invoke, JSON/stdio adapter,
+As of 2026-09-06, Phase 1 primitives, Phase 2 metadata registry, and Phase 3
+core/reference-host MVP are merged into `main` at `89b6184`: sealed object
+contracts, architecture-checker qualified-path coverage, thread-affine `Runtime`, Command list/get/invoke, JSON/stdio adapter,
 and a **reference** host (`lab-inspect`). A production host has not been
 selected; that remaining acceptance is recorded in
-[phase 3 tasks](docs/phase-3-tasks.md) and [host freeze](docs/phase-3-host.md).
+[phase 3 tasks](docs/phase-3-tasks.md) (P3-R01–R04) and [host freeze](docs/phase-3-host.md).
+Resources, tracked tasks, observation, and additional adapters are planned, not
+implemented; the full roadmap and dependencies are in the overall development plan.
 
 ## Reference host (stdio)
 

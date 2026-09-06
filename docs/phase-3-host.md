@@ -105,9 +105,13 @@ conversion framework.
 
 ## Remaining production-host acceptance
 
-P3-012 item 5 (real application usage) is **not** claimed. The next phase should
-choose Resource or Task only after a real host exists; until then the state
-extension is recorded as not required by this reference calculator.
+P3-012 item 5 (real application usage) is **not** claimed. P3-R01–R04 in
+[phase 3 tasks](phase-3-tasks.md) now track that remaining work.
+This reference calculator does not require state, but that does not remove
+Resource and Task from the full product goal. The [current roadmap](development-plan.md)
+plans them as separate P4/P5 increments; concrete lifecycle and execution
+choices require a host scenario, and technical reference tests do not replace
+production acceptance.
 
 Reference-host discovery/correction steps (tagged JSON):
 
